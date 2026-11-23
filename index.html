@@ -1,0 +1,1663 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Gestión de Órdenes de Trabajo</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .modal { transition: opacity 0.2s ease; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
+
+    <div id="login-container" class="flex-1 flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
+            <h2 class="text-2xl font-bold text-center text-indigo-600 mb-6">Iniciar Sesión</h2>
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Correo Electrónico</label>
+                    <input type="email" id="login-email" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 border focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Contraseña</label>
+                    <input type="password" id="login-password" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2.5 border focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <button type="submit" class="w-full bg-indigo-600 text-white p-2.5 rounded-md font-semibold hover:bg-indigo-700 transition">Ingresar</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="app-container" class="hidden flex-1 flex flex-col">
+        <header class="bg-indigo-600 text-white shadow-md p-4 flex flex-wrap justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <h1 class="text-xl font-bold tracking-tight">LaborTrading SG</h1>
+                <span id="role-badge" class="bg-indigo-800 text-xs px-2.5 py-1 rounded-full font-semibold">Usuario</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <span id="user-display" class="text-sm font-medium"></span>
+                <button id="logout-btn" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-md text-sm font-medium transition">Cerrar Sesión</button>
+            </div>
+        </header>
+
+        <nav id="main-nav" class="bg-white border-b border-gray-200 overflow-x-auto flex whitespace-nowrap shadow-sm">
+            <button onclick="switchTab('tab-crear')" class="tab-btn px-4 py-3 border-b-2 border-indigo-600 text-indigo-600 font-medium text-sm transition focus:outline-none">1. Crear Orden</button>
+            <button onclick="switchTab('tab-en-curso')" class="tab-btn px-4 py-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm transition focus:outline-none">2. Órdenes en Curso</button>
+            <button onclick="switchTab('tab-finalizadas')" class="tab-btn px-4 py-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm transition focus:outline-none">3. Órdenes Finalizadas</button>
+            <button onclick="switchTab('tab-empresas')" class="tab-btn px-4 py-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm transition focus:outline-none">4. Empresas</button>
+            <button onclick="switchTab('tab-cert-final')" class="tab-btn px-4 py-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm transition focus:outline-none">5. Certificación Final</button>
+            <button onclick="switchTab('tab-cert-finales-lista')" class="tab-btn px-4 py-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm transition focus:outline-none">6. Certificaciones Finales</button>
+            <button onclick="switchTab('tab-reporte')" class="tab-btn px-4 py-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm transition focus:outline-none">7. Reportes</button>
+            <button id="admin-nav-btn" onclick="switchTab('tab-admin')" class="tab-btn hidden px-4 py-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm transition focus:outline-none bg-red-50">8. Administración</button>
+        </nav>
+
+        <main class="flex-1 p-4 max-w-7xl w-full mx-auto">
+            
+            <div id="tab-crear" class="tab-content active bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h2 class="text-2xl font-bold border-b pb-3 mb-6 text-gray-900">Orden de Trabajo</h2>
+                <form id="form-orden" class="space-y-8">
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h3 class="text-lg font-semibold text-indigo-700 mb-4">I. Información General</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600">N° Orden de Trabajo</label>
+                                <input type="number" id="ord-num" readonly class="mt-1 block w-full bg-gray-200 border-gray-300 rounded-md p-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600">Mes</label>
+                                <input type="text" id="ord-mes" readonly class="mt-1 block w-full bg-gray-200 border-gray-300 rounded-md p-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600">Año</label>
+                                <input type="text" id="ord-anio" readonly class="mt-1 block w-full bg-gray-200 border-gray-300 rounded-md p-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600">Fecha Actual (Vzla)</label>
+                                <input type="date" id="ord-fecha" readonly class="mt-1 block w-full bg-gray-200 border-gray-300 rounded-md p-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600">Usuario Analista</label>
+                                <input type="text" id="ord-usuario" readonly class="mt-1 block w-full bg-gray-200 border-gray-300 rounded-md p-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Trabajo Obra a realizar</label>
+                                <select id="ord-trabajo" required class="mt-1 block w-full border-gray-300 rounded-md p-2 border">
+                                    <option value="Construcción de Acometida">Construcción de Acometida</option>
+                                    <option value="Construcción Nodo Acceso">Construcción Nodo Acceso</option>
+                                    <option value="Construcción ISP">Construcción ISP</option>
+                                    <option value="Construcción Feeder[Pedestales - Zanjados - Tanquillas - Postes]">Construcción Feeder[Pedestales - Zanjados - Tanquillas - Postes]</option>
+                                    <option value="Mantenimiento de Red">Mantenimiento de Red</option>
+                                    <option value="Relevamiento">Relevamiento</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Municipio</label>
+                                <select id="ord-municipio" required class="mt-1 block w-full border-gray-300 rounded-md p-2 border">
+                                    <option value="Libertador">Libertador</option>
+                                    <option value="Sucre">Sucre</option>
+                                    <option value="Baruta">Baruta</option>
+                                    <option value="Chacao">Chacao</option>
+                                    <option value="Hatillo">Hatillo</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Tipo de Contrato</label>
+                                <select id="ord-contrato" required class="mt-1 block w-full border-gray-300 rounded-md p-2 border">
+                                    <option value="Acometidas">Acometidas</option>
+                                    <option value="Nodo de Acceso">Nodo de Acceso</option>
+                                    <option value="Relevamiento">Relevamiento</option>
+                                    <option value="Desmantelado">Desmantelado</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Zona</label>
+                                <input type="text" id="ord-zona" required class="mt-1 block w-full border-gray-300 rounded-md p-2 border">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Responsable que Solicita</label>
+                                <input type="text" id="ord-solicita" required class="mt-1 block w-full border-gray-300 rounded-md p-2 border">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Responsable que Autoriza</label>
+                                <input type="text" id="ord-autoriza" required class="mt-1 block w-full border-gray-300 rounded-md p-2 border">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h3 class="text-lg font-semibold text-indigo-700 mb-4">II. Información de la Contratista</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Empresa</label>
+                                <select id="ord-empresa" required class="mt-1 block w-full border-gray-300 rounded-md p-2 border">
+                                    <option value="">Seleccione una empresa...</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600">Apellido y Nombre del Responsable</label>
+                                <input type="text" id="ord-emp-resp" readonly class="mt-1 block w-full bg-gray-200 border-gray-300 rounded-md p-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600">RIF</label>
+                                <input type="text" id="ord-emp-rif" readonly class="mt-1 block w-full bg-gray-200 border-gray-300 rounded-md p-2">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h3 class="text-lg font-semibold text-indigo-700 mb-4">III. Información del Trabajo Obra</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="md:col-span-3">
+                                <label class="block text-sm font-medium text-gray-700">Ubicación</label>
+                                <textarea id="ord-ubicacion" required rows="2" class="mt-1 block w-full border-gray-300 rounded-md p-2 border"></textarea>
+                            </div>
+                            <div class="md:col-span-3">
+                                <label class="block text-sm font-medium text-gray-700">Descripción Detallada</label>
+                                <textarea id="ord-descripcion" required rows="3" class="mt-1 block w-full border-gray-300 rounded-md p-2 border"></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Mano de Obra</label>
+                                <select id="ord-mano" required class="mt-1 block w-full border-gray-300 rounded-md p-2 border">
+                                    <option value="Contratista">Contratista</option>
+                                    <option value="Inter">Inter</option>
+                                    <option value="Ambos [Inter-Contratista]">Ambos [Inter-Contratista]</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Materiales</label>
+                                <select id="ord-materiales" required class="mt-1 block w-full border-gray-300 rounded-md p-2 border">
+                                    <option value="Contratista">Contratista</option>
+                                    <option value="Inter">Inter</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Equipos</label>
+                                <select id="ord-equipos" required class="mt-1 block w-full border-gray-300 rounded-md p-2 border">
+                                    <option value="Contratista">Contratista</option>
+                                    <option value="Inter">Inter</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Fecha de Inicio</label>
+                                <input type="date" id="ord-f-inicio" required class="mt-1 block w-full border-gray-300 rounded-md p-2 border">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Fecha de Finalización</label>
+                                <input type="date" id="ord-f-fin" required class="mt-1 block w-full border-gray-300 rounded-md p-2 border">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Presupuesto Total de la Obra ($)</label>
+                                <input type="number" step="0.01" id="ord-presupuesto" required class="mt-1 block w-full border-gray-300 rounded-md p-2 border">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h3 class="text-lg font-semibold text-indigo-700 mb-3">Secciones Opcionales de Construcción</h3>
+                        <div class="flex flex-wrap gap-3 mb-4">
+                            <button type="button" onclick="toggleOpcional('opc-nodo', true)" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow-sm text-sm font-medium">Nodo Acceso</button>
+                            <button type="button" onclick="toggleOpcional('opc-isp', true)" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow-sm text-sm font-medium">Construcción de ISP</button>
+                            <button type="button" onclick="hideOpcionales()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded shadow-sm text-sm font-medium">Ocultar Secciones Opcionales</button>
+                        </div>
+
+                        <div id="opc-nodo" class="hidden border border-blue-200 bg-blue-50/50 p-4 rounded-lg mb-4">
+                            <h4 class="text-md font-bold text-blue-800 mb-3">Construcción de Nodo de Acceso</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Costo Proyectado Obra ($)</label>
+                                    <input type="number" step="0.01" id="nodo-costo" class="mt-1 block w-full border-gray-300 rounded-md p-2 border bg-white">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Pago realizado por</label>
+                                    <select id="nodo-pago-por" class="mt-1 block w-full border-gray-300 rounded-md p-2 border bg-white">
+                                        <option value="Inter">Inter</option>
+                                        <option value="Cliente">Cliente</option>
+                                    </select>
+                                </div>
+                                <div class="p-3 bg-white rounded border border-gray-200">
+                                    <span class="block text-sm font-semibold text-gray-700 mb-2">Pago x VGT CANTV</span>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <input type="number" id="nodo-cantv-pu" placeholder="P. Unitario" oninput="calcVgt('nodo-cantv')" class="border p-2 rounded text-sm">
+                                        <input type="number" id="nodo-cantv-pts" placeholder="Puntos" oninput="calcVgt('nodo-cantv')" class="border p-2 rounded text-sm">
+                                    </div>
+                                    <span class="text-xs text-gray-500 mt-1 block">Total: $<span id="nodo-cantv-tot">0.00</span></span>
+                                </div>
+                                <div class="p-3 bg-white rounded border border-gray-200">
+                                    <span class="block text-sm font-semibold text-gray-700 mb-2">Pago x VGT EDC</span>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <input type="number" id="nodo-edc-pu" placeholder="P. Unitario" oninput="calcVgt('nodo-edc')" class="border p-2 rounded text-sm">
+                                        <input type="number" id="nodo-edc-pts" placeholder="Puntos" oninput="calcVgt('nodo-edc')" class="border p-2 rounded text-sm">
+                                    </div>
+                                    <span class="text-xs text-gray-500 mt-1 block">Total: $<span id="nodo-edc-tot">0.00</span></span>
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-medium text-gray-700">Descripción</label>
+                                    <textarea id="nodo-desc" rows="2" class="mt-1 block w-full border-gray-300 rounded-md p-2 border bg-white"></textarea>
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-medium text-gray-700">Abono Mensual a Recibir por el cliente ($)</label>
+                                    <input type="number" step="0.01" id="nodo-abono" class="mt-1 block w-full border-gray-300 rounded-md p-2 border bg-white w-full md:w-1/2">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="opc-isp" class="hidden border border-green-200 bg-green-50/50 p-4 rounded-lg">
+                            <h4 class="text-md font-bold text-green-800 mb-3">Construcción de ISP</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Costo Proyectado Obra ($)</label>
+                                    <input type="number" step="0.01" id="isp-costo" class="mt-1 block w-full border-gray-300 rounded-md p-2 border bg-white">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">Pago realizado por</label>
+                                    <select id="isp-pago-por" class="mt-1 block w-full border-gray-300 rounded-md p-2 border bg-white">
+                                        <option value="Inter">Inter</option>
+                                        <option value="Cliente">Cliente</option>
+                                    </select>
+                                </div>
+                                <div class="p-3 bg-white rounded border border-gray-200">
+                                    <span class="block text-sm font-semibold text-gray-700 mb-2">Pago x VGT CANTV</span>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <input type="number" id="isp-cantv-pu" placeholder="P. Unitario" oninput="calcVgt('isp-cantv')" class="border p-2 rounded text-sm">
+                                        <input type="number" id="isp-cantv-pts" placeholder="Puntos" oninput="calcVgt('isp-cantv')" class="border p-2 rounded text-sm">
+                                    </div>
+                                    <span class="text-xs text-gray-500 mt-1 block">Total: $<span id="isp-cantv-tot">0.00</span></span>
+                                </div>
+                                <div class="p-3 bg-white rounded border border-gray-200">
+                                    <span class="block text-sm font-semibold text-gray-700 mb-2">Pago x VGT EDC</span>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <input type="number" id="isp-edc-pu" placeholder="P. Unitario" oninput="calcVgt('isp-edc')" class="border p-2 rounded text-sm">
+                                        <input type="number" id="isp-edc-pts" placeholder="Puntos" oninput="calcVgt('isp-edc')" class="border p-2 rounded text-sm">
+                                    </div>
+                                    <span class="text-xs text-gray-500 mt-1 block">Total: $<span id="isp-edc-tot">0.00</span></span>
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-medium text-gray-700">Descripción</label>
+                                    <textarea id="isp-desc" rows="2" class="mt-1 block w-full border-gray-300 rounded-md p-2 border bg-white"></textarea>
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-medium text-gray-700">Abono Mensual a Recibir por el cliente ($)</label>
+                                    <input type="number" step="0.01" id="isp-abono" class="mt-1 block w-full border-gray-300 rounded-md p-2 border bg-white w-full md:w-1/2">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded shadow transition">Crear Orden y Generar PDF</button>
+                </form>
+            </div>
+
+            <div id="tab-en-curso" class="tab-content bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h2 class="text-2xl font-bold border-b pb-3 mb-6 text-gray-900">Órdenes en Curso</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 bg-indigo-50 p-4 rounded-lg">
+                    <div class="text-center"><span class="block text-sm text-gray-600 font-medium">Año</span><span id="p1-anio" class="text-xl font-bold text-indigo-900">-</span></div>
+                    <div class="text-center"><span class="block text-sm text-gray-600 font-medium">Mes</span><span id="p1-mes" class="text-xl font-bold text-indigo-900">-</span></div>
+                    <div class="text-center"><span class="block text-sm text-gray-600 font-medium">Órdenes en Curso</span><span id="p1-cant" class="text-xl font-bold text-indigo-900">0</span></div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-5 gap-3 mb-4">
+                    <div class="sm:col-span-2 flex gap-1">
+                        <input type="number" id="f-encurso-busq" placeholder="Buscar N° Orden..." class="border p-2 rounded w-full text-sm">
+                        <button onclick="filtrarEnCurso()" class="bg-indigo-600 text-white px-3 rounded hover:bg-indigo-700 transition text-sm">Buscar</button>
+                    </div>
+                    <select id="f-encurso-emp" onchange="filtrarEnCurso()" class="border p-2 rounded text-sm"><option value="">Empresa (Todas)</option></select>
+                    <select id="f-encurso-obra" onchange="filtrarEnCurso()" class="border p-2 rounded text-sm">
+                        <option value="">Trabajo Obra (Todos)</option>
+                        <option value="Construcción de Acometida">Construcción de Acometida</option>
+                        <option value="Construcción Nodo Acceso">Construcción Nodo Acceso</option>
+                        <option value="Construcción ISP">Construcción ISP</option>
+                        <option value="Construcción Feeder[Pedestales - Zanjados - Tanquillas - Postes]">Construcción Feeder...</option>
+                        <option value="Mantenimiento de Red">Mantenimiento de Red</option>
+                        <option value="Relevamiento">Relevamiento</option>
+                    </select>
+                    <button onclick="exportarExcel('curso')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium p-2 rounded text-sm transition">EXPORTAR EXCEL</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-100 border-b">
+                                <th class="p-3">Año</th><th class="p-3">Mes</th><th class="p-3">Número de Orden</th><th class="p-3">Empresa</th><th class="p-3">Trabajo Obra a Realizar</th><th class="p-3">Estado</th><th class="p-3">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-encurso-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="modal-certificar" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50 overflow-y-auto modal">
+                <div class="bg-white p-6 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <h2 class="text-xl font-bold mb-4 text-indigo-700" id="cert-titulo">Certificación de Obra</h2>
+                    <form id="form-certificacion" class="space-y-4">
+                        <input type="hidden" id="cert-ord-id">
+                        <div class="bg-gray-50 p-3 rounded grid grid-cols-2 gap-3 text-sm">
+                            <div><span class="font-semibold">N° Certificación:</span> <input type="text" id="cert-num" readonly class="bg-transparent border-none p-0 w-full font-bold text-gray-800"></div>
+                            <div><span class="font-semibold">Mes:</span> <input type="text" id="cert-mes" readonly class="bg-transparent border-none p-0 w-full"></div>
+                            <div><span class="font-semibold">Año:</span> <input type="text" id="cert-anio" readonly class="bg-transparent border-none p-0 w-full"></div>
+                            <div><span class="font-semibold">Fecha Actual:</span> <input type="text" id="cert-fecha" readonly class="bg-transparent border-none p-0 w-full"></div>
+                        </div>
+                        <div class="bg-gray-50 p-3 rounded grid grid-cols-2 gap-3 text-sm">
+                            <div><span class="font-semibold">Empresa:</span> <input type="text" id="cert-empresa" readonly class="bg-transparent border-none p-0 w-full"></div>
+                            <div><span class="font-semibold">RIF:</span> <input type="text" id="cert-rif" readonly class="bg-transparent border-none p-0 w-full"></div>
+                        </div>
+                        <div class="bg-gray-50 p-3 rounded grid grid-cols-2 gap-3 text-sm">
+                            <div><span class="font-semibold">Fecha Inicio:</span> <input type="text" id="cert-f-inicio" readonly class="bg-transparent border-none p-0 w-full"></div>
+                            <div><span class="font-semibold">Fecha Fin:</span> <input type="text" id="cert-f-fin" readonly class="bg-transparent border-none p-0 w-full"></div>
+                        </div>
+                        <div class="bg-gray-50 p-3 rounded gap-3 text-sm">
+                            <div class="mb-2"><span class="font-semibold">Descripción Detallada:</span> <p id="cert-desc" class="text-gray-700 bg-white p-2 border rounded mt-1"></p></div>
+                            <div><span class="font-semibold">Importe Total ($):</span> <input type="text" id="cert-importe" readonly class="bg-transparent border-none p-0 w-full font-bold text-green-700"></div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">V. Desviaciones y Justificación (Detalles)</label>
+                            <textarea id="cert-detalles-desv" required rows="3" class="mt-1 block w-full border-gray-300 rounded-md p-2 border"></textarea>
+                        </div>
+                        <div class="flex justify-end gap-3 pt-2">
+                            <button type="button" onclick="closeCertificarModal()" class="bg-gray-500 text-white px-4 py-2 rounded shadow">Atrás</button>
+                            <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded shadow">Aceptar Certificación</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div id="tab-finalizadas" class="tab-content bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h2 class="text-2xl font-bold border-b pb-3 mb-6 text-gray-900">Órdenes Finalizadas</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 bg-indigo-50 p-4 rounded-lg">
+                    <div class="text-center"><span class="block text-sm text-gray-600 font-medium">Año</span><span id="p3-anio" class="text-xl font-bold text-indigo-900">-</span></div>
+                    <div class="text-center"><span class="block text-sm text-gray-600 font-medium">Mes</span><span id="p3-mes" class="text-xl font-bold text-indigo-900">-</span></div>
+                    <div class="text-center"><span class="block text-sm text-gray-600 font-medium">Órdenes Finalizadas</span><span id="p3-cant" class="text-xl font-bold text-indigo-900">0</span></div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-5 gap-3 mb-4">
+                    <div class="sm:col-span-2 flex gap-1">
+                        <input type="number" id="f-fin-busq" placeholder="Buscar N° Orden..." class="border p-2 rounded w-full text-sm">
+                        <button onclick="filtrarFinalizadas()" class="bg-indigo-600 text-white px-3 rounded hover:bg-indigo-700 transition text-sm">Buscar</button>
+                    </div>
+                    <select id="f-fin-emp" onchange="filtrarFinalizadas()" class="border p-2 rounded text-sm"><option value="">Empresa (Todas)</option></select>
+                    <select id="f-fin-obra" onchange="filtrarFinalizadas()" class="border p-2 rounded text-sm"><option value="">Trabajo Obra (Todos)</option></select>
+                    <button onclick="exportarExcel('finalizadas')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium p-2 rounded text-sm transition">EXPORTAR EXCEL</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-100 border-b">
+                                <th class="p-3">Año</th><th class="p-3">Mes</th><th class="p-3">Número de Orden</th><th class="p-3">Empresa</th><th class="p-3">Trabajo Obra a Realizar</th><th class="p-3">Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-finalizadas-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="tab-empresas" class="tab-content bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h2 class="text-2xl font-bold border-b pb-3 mb-6 text-gray-900">Gestión de Empresas</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="bg-gray-50 p-4 rounded-lg h-fit">
+                        <h3 id="emp-form-title" class="text-lg font-semibold text-indigo-700 mb-4">Agregar Empresa</h3>
+                        <form id="form-empresa" class="space-y-4">
+                            <input type="hidden" id="emp-id">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Nombre de la Empresa</label>
+                                <input type="text" id="emp-nombre" required class="mt-1 block w-full border-gray-300 rounded-md p-2 border bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Apellido y Nombre del Responsable</label>
+                                <input type="text" id="emp-responsable" required class="mt-1 block w-full border-gray-300 rounded-md p-2 border bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">RIF</label>
+                                <input type="text" id="emp-rif-val" required class="mt-1 block w-full border-gray-300 rounded-md p-2 border bg-white" placeholder="J-123456789-0">
+                            </div>
+                            <div class="flex gap-2">
+                                <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium p-2 rounded shadow text-sm">Guardar</button>
+                                <button type="button" onclick="resetEmpresaForm()" class="bg-gray-400 hover:bg-gray-500 text-white font-medium p-2 rounded shadow text-sm">Limpiar</button>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="md:col-span-2">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-4">Empresas Registradas</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-gray-100 border-b">
+                                        <th class="p-3">Nombre de la Empresa</th><th class="p-3">Responsable</th><th class="p-3">RIF</th><th class="p-3">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabla-empresas-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-cert-final" class="tab-content bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h2 class="text-2xl font-bold border-b pb-3 mb-6 text-gray-900">Certificación Final</h2>
+                <form id="form-cert-final" class="space-y-6">
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h3 class="text-lg font-semibold text-indigo-700 mb-4">I. Información de la Certificación</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600">N° Certificación Final</label>
+                                <input type="text" id="cf-num" readonly class="mt-1 block w-full bg-gray-200 border-gray-300 rounded-md p-2 font-bold">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600">Mes</label>
+                                <input type="text" id="cf-mes" readonly class="mt-1 block w-full bg-gray-200 border-gray-300 rounded-md p-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-600">Año</label>
+                                <input type="text" id="cf-anio" readonly class="mt-1 block w-full bg-gray-200 border-gray-300 rounded-md p-2">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h3 class="text-lg font-semibold text-indigo-700 mb-4">II. Información de la Empresa</h3>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Empresa contratista</label>
+                            <select id="cf-empresa" required class="mt-1 block w-full border-gray-300 rounded-md p-2 border bg-white">
+                                <option value="">Seleccione una empresa...</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h3 class="text-lg font-semibold text-indigo-700 mb-4">III. Órdenes Realizadas</h3>
+                        <div id="cf-ordenes-container" class="space-y-2 max-h-60 overflow-y-auto bg-white p-3 border rounded">
+                            <p class="text-sm text-gray-500 italic">Seleccione una empresa para listar órdenes finalizadas no certificadas.</p>
+                        </div>
+                        <div class="mt-4 border-t pt-3 flex justify-between items-center">
+                            <span class="text-md font-bold text-gray-700">Total de Certificación:</span>
+                            <span class="text-xl font-black text-indigo-600">$<span id="cf-total-sum">0.00</span></span>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded shadow transition">Aceptar Certificación Final (Generar PDF)</button>
+                </form>
+            </div>
+
+            <div id="tab-cert-finales-lista" class="tab-content bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h2 class="text-2xl font-bold border-b pb-3 mb-6 text-gray-900">Certificaciones Finales Registradas</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 bg-indigo-50 p-4 rounded-lg">
+                    <div class="text-center"><span class="block text-sm text-gray-600 font-medium">Año</span><span id="p6-anio" class="text-xl font-bold text-indigo-900">-</span></div>
+                    <div class="text-center"><span class="block text-sm text-gray-600 font-medium">Mes</span><span id="p6-mes" class="text-xl font-bold text-indigo-900">-</span></div>
+                    <div class="text-center"><span class="block text-sm text-gray-600 font-medium">Certificaciones Finales</span><span id="p6-cant" class="text-xl font-bold text-indigo-900">0</span></div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">
+                    <select id="f-cfl-emp" onchange="filtrarCertFinales()" class="border p-2 rounded text-sm"><option value="">Empresa (Todas)</option></select>
+                    <select id="f-cfl-mes" onchange="filtrarCertFinales()" class="border p-2 rounded text-sm"><option value="">Mes (Todos)</option></select>
+                    <select id="f-cfl-anio" onchange="filtrarCertFinales()" class="border p-2 rounded text-sm"><option value="">Año (Todos)</option></select>
+                    <button onclick="exportarExcel('certfinales')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium p-2 rounded text-sm transition">EXPORTAR EXCEL</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-100 border-b">
+                                <th class="p-3">Año</th><th class="p-3">Mes</th><th class="p-3">Número Certificación Final</th><th class="p-3">Empresa</th><th class="p-3">Total ($)</th><th class="p-3">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-certfinales-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="tab-reporte" class="tab-content bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h2 class="text-2xl font-bold border-b pb-3 mb-6 text-gray-900">Generación de Reporte Resumen</h2>
+                <div class="bg-gray-50 p-4 rounded-lg mb-6">
+                    <h3 class="text-md font-semibold mb-3 text-indigo-700">Filtros Generales del Reporte</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                        <div>
+                            <label class="text-xs font-semibold text-gray-600">Fecha Desde</label>
+                            <input type="date" id="rep-f-desde" class="border p-2 rounded text-sm w-full">
+                        </div>
+                        <div>
+                            <label class="text-xs font-semibold text-gray-600">Fecha Hasta</label>
+                            <input type="date" id="rep-f-hasta" class="border p-2 rounded text-sm w-full">
+                        </div>
+                        <div>
+                            <label class="text-xs font-semibold text-gray-600">Empresa</label>
+                            <select id="rep-empresa" class="border p-2 rounded text-sm w-full"><option value="">Todas</option></select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-semibold text-gray-600">Trabajo Obra</label>
+                            <select id="rep-obra" class="border p-2 rounded text-sm w-full">
+                                <option value="">Todos</option>
+                                <option value="Construcción de Acometida">Construcción de Acometida</option>
+                                <option value="Construcción Nodo Acceso">Construcción Nodo Acceso</option>
+                                <option value="Construcción ISP">Construcción ISP</option>
+                                <option value="Construcción Feeder[Pedestales - Zanjados - Tanquillas - Postes]">Construcción Feeder...</option>
+                                <option value="Mantenimiento de Red">Mantenimiento de Red</option>
+                                <option value="Relevamiento">Relevamiento</option>
+                            </select>
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="generarReportePDF()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold p-2.5 rounded text-sm w-full shadow transition">Generar Reporte PDF</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-admin" class="tab-content bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h2 class="text-2xl font-bold border-b pb-3 mb-6 text-red-600">Consola Administrativa</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 shadow-sm">
+                        <h3 class="text-lg font-bold text-gray-700 mb-2">Exportar Respaldo Completo</h3>
+                        <p class="text-sm text-gray-600 mb-4">Descarga toda la base de datos de Firestore en un único archivo JSON.</p>
+                        <button onclick="exportarBackupJSON()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded text-sm transition">Exportar JSON</button>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 shadow-sm">
+                        <h3 class="text-lg font-bold text-gray-700 mb-2">Importar Respaldo Base de Datos</h3>
+                        <p class="text-sm text-gray-600 mb-4">Selecciona un archivo JSON previamente exportado para restaurar los datos en Firestore (Atención: Sobrescribirá colecciones existentes).</p>
+                        <input type="file" id="import-json-file" accept=".json" class="block w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100 mb-3">
+                        <button onclick="importarBackupJSON()" class="bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded text-sm transition">Importar JSON</button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
+        import {
+            getFirestore, collection, doc, setDoc, addDoc, updateDoc, deleteDoc,
+            getDocs, getDoc, onSnapshot, query, where, orderBy, runTransaction,
+            writeBatch, serverTimestamp
+        } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyA6DPQ0sC9C1HAVzkA8ukdnUUvAtDkuDB0",
+            authDomain: "certificacionordenes-707ec.firebaseapp.com",
+            projectId: "certificacionordenes-707ec",
+            storageBucket: "certificacionordenes-707ec.firebasestorage.app",
+            messagingSenderId: "268124313867",
+            appId: "1:268124313867:web:796bdc1525991ef9f2ea0e"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        const ADMIN_EMAIL = "labortradingsg@gmail.com";
+        let currentUser = null;
+        let isAdmin = false;
+
+        // Estructura en memoria: { id: { ...datos } }
+        let dataEmpresas = {};
+        let dataOrdenes = {};
+        let dataCertFinales = {};
+
+        // Cache de mapa nombreEmpresa -> idEmpresa (para buscar rápido)
+        let empresaIdByNombre = {};
+
+        function getCaracasDate() {
+            const d = new Date();
+            const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+            return new Date(utc + (3600000 * -4));
+        }
+
+        const MESES_NOMBRES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+
+        function initFormFechas() {
+            const fVzla = getCaracasDate();
+            const anio = fVzla.getFullYear();
+            const mesNum = fVzla.getMonth();
+            const mesNombre = MESES_NOMBRES[mesNum];
+            const fechaString = fVzla.toISOString().split('T')[0];
+
+            document.getElementById('ord-mes').value = mesNombre;
+            document.getElementById('ord-anio').value = anio;
+            document.getElementById('ord-fecha').value = fechaString;
+
+            document.getElementById('cf-mes').value = mesNombre;
+            document.getElementById('cf-anio').value = anio;
+
+            document.getElementById('p1-anio').innerText = anio;
+            document.getElementById('p1-mes').innerText = mesNombre;
+            document.getElementById('p3-anio').innerText = anio;
+            document.getElementById('p3-mes').innerText = mesNombre;
+            document.getElementById('p6-anio').innerText = anio;
+            document.getElementById('p6-mes').innerText = mesNombre;
+
+            calcularSiguienteNumeroOrden(anio, mesNombre);
+            calcularSiguienteCertificacionFinal(anio, mesNum + 1);
+        }
+
+        async function calcularSiguienteNumeroOrden(anio, mesNombre) {
+            try {
+                const q = query(
+                    collection(db, 'ordenes'),
+                    where('anio', '==', anio),
+                    where('mes', '==', mesNombre)
+                );
+                const snap = await getDocs(q);
+                let maxNum = 0;
+                snap.forEach(d => {
+                    const o = d.data();
+                    if ((o.numOrden || 0) > maxNum) maxNum = o.numOrden;
+                });
+                document.getElementById('ord-num').value = maxNum + 1;
+            } catch (err) {
+                console.error("Error calculando siguiente N° de orden:", err);
+                document.getElementById('ord-num').value = 1;
+            }
+        }
+
+        async function calcularSiguienteCertificacionFinal(anio, mesNum) {
+            const prefijoMes = String(mesNum).padStart(2, '0');
+            try {
+                const q = query(
+                    collection(db, 'certificaciones_finales'),
+                    where('anio', '==', anio)
+                );
+                const snap = await getDocs(q);
+                let maxCorrelativo = 0;
+                snap.forEach(d => {
+                    const cf = d.data();
+                    if (cf.numCertFinal && cf.numCertFinal.startsWith(prefijoMes + "-")) {
+                        const partes = cf.numCertFinal.split("-");
+                        const correlativo = parseInt(partes[1], 10);
+                        if (correlativo > maxCorrelativo) maxCorrelativo = correlativo;
+                    }
+                });
+                document.getElementById('cf-num').value = `${prefijoMes}-${String(maxCorrelativo + 1).padStart(2, '0')}`;
+            } catch (err) {
+                console.error("Error calculando certificación final:", err);
+                document.getElementById('cf-num').value = `${prefijoMes}-01`;
+            }
+        }
+
+        document.getElementById('login-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const pass = document.getElementById('login-password').value;
+            signInWithEmailAndPassword(auth, email, pass)
+                .catch(err => alert("Error de autenticación: " + err.message));
+        });
+
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            signOut(auth);
+        });
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                isAdmin = (user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase());
+                
+                document.getElementById('login-container').classList.add('hidden');
+                document.getElementById('app-container').classList.remove('hidden');
+                document.getElementById('user-display').innerText = user.email;
+                const usuarioField = document.getElementById('ord-usuario');
+                if (usuarioField) usuarioField.value = user.email;
+
+                if (isAdmin) {
+                    const roleBadge = document.getElementById('role-badge');
+                    roleBadge.innerText = "Administrador";
+                    roleBadge.className = "bg-red-600 text-xs px-2.5 py-1 rounded-full font-semibold";
+                    const adminNav = document.getElementById('admin-nav-btn');
+                    if (adminNav) adminNav.classList.remove('hidden');
+                } else {
+                    const roleBadge = document.getElementById('role-badge');
+                    roleBadge.innerText = "Usuario";
+                    roleBadge.className = "bg-indigo-800 text-xs px-2.5 py-1 rounded-full font-semibold";
+                    const adminNav = document.getElementById('admin-nav-btn');
+                    if (adminNav) adminNav.classList.add('hidden');
+                }
+
+                initFormFechas();
+                sincronizarRealtime();
+            } else {
+                currentUser = null;
+                isAdmin = false;
+                dataEmpresas = {};
+                dataOrdenes = {};
+                dataCertFinales = {};
+                empresaIdByNombre = {};
+                document.getElementById('login-container').classList.remove('hidden');
+                document.getElementById('app-container').classList.add('hidden');
+            }
+        });
+
+        // ==== SINCRONIZACIÓN EN TIEMPO REAL CON FIRESTORE ====
+        let unsubEmpresas = null;
+        let unsubOrdenes = null;
+        let unsubCertFinales = null;
+
+        function sincronizarRealtime() {
+            if (unsubEmpresas) unsubEmpresas();
+            if (unsubOrdenes) unsubOrdenes();
+            if (unsubCertFinales) unsubCertFinales();
+
+            unsubEmpresas = onSnapshot(collection(db, 'empresas'), (snapshot) => {
+                dataEmpresas = {};
+                empresaIdByNombre = {};
+                snapshot.forEach(d => {
+                    dataEmpresas[d.id] = d.data();
+                    empresaIdByNombre[d.data().nombre] = d.id;
+                });
+                renderEmpresas();
+                updateEmpresasDropdowns();
+            }, (err) => console.error("Error onSnapshot empresas:", err));
+
+            unsubOrdenes = onSnapshot(collection(db, 'ordenes'), (snapshot) => {
+                dataOrdenes = {};
+                snapshot.forEach(d => { dataOrdenes[d.id] = d.data(); });
+                filtrarEnCurso();
+                filtrarFinalizadas();
+                const cfEmpresa = document.getElementById('cf-empresa');
+                if (cfEmpresa && cfEmpresa.value) {
+                    cargarOrdenesNoCertificadas(cfEmpresa.value);
+                }
+            }, (err) => console.error("Error onSnapshot ordenes:", err));
+
+            unsubCertFinales = onSnapshot(collection(db, 'certificaciones_finales'), (snapshot) => {
+                dataCertFinales = {};
+                snapshot.forEach(d => { dataCertFinales[d.id] = d.data(); });
+                filtrarCertFinales();
+            }, (err) => console.error("Error onSnapshot certificaciones_finales:", err));
+        }
+
+        // ==== AUTOFILL EMPRESA ====
+        window.autoFillEmpresa = function(empNombre) {
+            if (!empNombre || empNombre === "") {
+                document.getElementById('ord-emp-resp').value = "";
+                document.getElementById('ord-emp-rif').value = "";
+                return;
+            }
+            for (let id in dataEmpresas) {
+                if (dataEmpresas[id].nombre === empNombre) {
+                    document.getElementById('ord-emp-resp').value = dataEmpresas[id].responsable || "";
+                    document.getElementById('ord-emp-rif').value = dataEmpresas[id].rif || "";
+                    return;
+                }
+            }
+            document.getElementById('ord-emp-resp').value = "";
+            document.getElementById('ord-emp-rif').value = "";
+        }
+
+        // ==== CRUD EMPRESAS (Firestore) ====
+        document.getElementById('form-empresa').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('emp-id').value;
+            const empresaData = {
+                nombre: document.getElementById('emp-nombre').value.trim(),
+                responsable: document.getElementById('emp-responsable').value.trim(),
+                rif: document.getElementById('emp-rif-val').value.trim()
+            };
+            
+            if (!empresaData.nombre || !empresaData.responsable || !empresaData.rif) {
+                alert("Por favor, complete todos los campos de la empresa.");
+                return;
+            }
+            
+            try {
+                if (id) {
+                    await updateDoc(doc(db, 'empresas', id), empresaData);
+                    alert("Empresa actualizada con éxito.");
+                } else {
+                    await addDoc(collection(db, 'empresas'), empresaData);
+                    alert("Empresa agregada con éxito.");
+                }
+                resetEmpresaForm();
+            } catch (error) {
+                console.error("Error al guardar empresa:", error);
+                alert("Error al guardar la empresa: " + error.message);
+            }
+        });
+
+        window.resetEmpresaForm = function() {
+            const form = document.getElementById('form-empresa');
+            if (form) form.reset();
+            const empId = document.getElementById('emp-id');
+            if (empId) empId.value = "";
+            const title = document.getElementById('emp-form-title');
+            if (title) title.innerText = "Agregar Empresa";
+        }
+
+        function renderEmpresas() {
+            const tbody = document.getElementById('tabla-empresas-body');
+            if (!tbody) return;
+            tbody.innerHTML = "";
+            for (let id in dataEmpresas) {
+                const emp = dataEmpresas[id];
+                tbody.innerHTML += `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-3 font-medium">${escapeHtml(emp.nombre)}</td>
+                        <td class="p-3">${escapeHtml(emp.responsable)}</td>
+                        <td class="p-3">${escapeHtml(emp.rif)}</td>
+                        <td class="p-3 flex gap-2">
+                            <button onclick="editarEmpresa('${id}')" class="text-indigo-600 hover:text-indigo-900 font-semibold text-xs">Editar</button>
+                            <button onclick="eliminarEmpresa('${id}')" class="text-red-600 hover:text-red-900 font-semibold text-xs">Eliminar</button>
+                        </td>
+                    </tr>`;
+            }
+        }
+
+        window.editarEmpresa = function(id) {
+            const emp = dataEmpresas[id];
+            if (!emp) return;
+            document.getElementById('emp-id').value = id;
+            document.getElementById('emp-nombre').value = emp.nombre;
+            document.getElementById('emp-responsable').value = emp.responsable;
+            document.getElementById('emp-rif-val').value = emp.rif;
+            document.getElementById('emp-form-title').innerText = "Editar Empresa";
+        }
+
+        window.eliminarEmpresa = async function(id) {
+            if (confirm("¿Seguro que desea eliminar esta empresa?")) {
+                try {
+                    await deleteDoc(doc(db, 'empresas', id));
+                    alert("Empresa eliminada con éxito.");
+                } catch (error) {
+                    alert("Error al eliminar la empresa: " + error.message);
+                }
+            }
+        }
+
+        function updateEmpresasDropdowns() {
+            const dropdowns = ['ord-empresa', 'cf-empresa', 'f-encurso-emp', 'f-fin-emp', 'f-cfl-emp', 'rep-empresa'];
+            
+            dropdowns.forEach(ddId => {
+                const element = document.getElementById(ddId);
+                if (!element) return;
+                
+                const savedVal = element.value;
+                
+                if (ddId.startsWith('f-') || ddId.startsWith('rep-')) {
+                    element.innerHTML = '<option value="">Todas</option>';
+                } else {
+                    element.innerHTML = '<option value="">Seleccione una empresa...</option>';
+                }
+                
+                for (let id in dataEmpresas) {
+                    element.innerHTML += `<option value="${escapeHtml(dataEmpresas[id].nombre)}">${escapeHtml(dataEmpresas[id].nombre)}</option>`;
+                }
+                
+                if (savedVal && savedVal !== "") {
+                    element.value = savedVal;
+                }
+            });
+            
+            const ordEmpresa = document.getElementById('ord-empresa');
+            if (ordEmpresa) {
+                ordEmpresa.removeEventListener('change', window.autoFillEmpresaHandler);
+                window.autoFillEmpresaHandler = function() {
+                    window.autoFillEmpresa(this.value);
+                };
+                ordEmpresa.addEventListener('change', window.autoFillEmpresaHandler);
+            }
+
+            const cfEmpresa = document.getElementById('cf-empresa');
+            if (cfEmpresa) {
+                cfEmpresa.removeEventListener('change', window.cargarOrdenesHandler);
+                window.cargarOrdenesHandler = function() {
+                    cargarOrdenesNoCertificadas(this.value);
+                };
+                cfEmpresa.addEventListener('change', window.cargarOrdenesHandler);
+            }
+        }
+
+        window.toggleOpcional = function(id, status) {
+            const element = document.getElementById(id);
+            if (element) {
+                if (status) {
+                    element.classList.remove('hidden');
+                } else {
+                    element.classList.add('hidden');
+                }
+            }
+        }
+        
+        window.hideOpcionales = function() {
+            window.toggleOpcional('opc-nodo', false);
+            window.toggleOpcional('opc-isp', false);
+        }
+        
+        window.calcVgt = function(prefix) {
+            const pu = parseFloat(document.getElementById(`${prefix}-pu`)?.value) || 0;
+            const pts = parseFloat(document.getElementById(`${prefix}-pts`)?.value) || 0;
+            const totalSpan = document.getElementById(`${prefix}-tot`);
+            if (totalSpan) totalSpan.innerText = (pu * pts).toFixed(2);
+        }
+
+        // ==== CREAR ORDEN (Firestore + Transacción para correlativo) ====
+        document.getElementById('form-orden').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const empresaNombre = document.getElementById('ord-empresa').value;
+            let empresaResp = document.getElementById('ord-emp-resp').value;
+            let empresaRif = document.getElementById('ord-emp-rif').value;
+            
+            if (!empresaNombre) {
+                alert("Por favor, seleccione una empresa.");
+                return;
+            }
+            
+            if (!empresaResp || !empresaRif) {
+                for (let id in dataEmpresas) {
+                    if (dataEmpresas[id].nombre === empresaNombre) {
+                        empresaResp = dataEmpresas[id].responsable || "";
+                        empresaRif = dataEmpresas[id].rif || "";
+                        break;
+                    }
+                }
+            }
+            
+            const anio = parseInt(document.getElementById('ord-anio').value, 10);
+            const mes = document.getElementById('ord-mes').value;
+            const mesNum = MESES_NOMBRES.indexOf(mes) + 1;
+
+            const ordenBase = {
+                mes,
+                anio,
+                fecha: document.getElementById('ord-fecha').value,
+                usuario: document.getElementById('ord-usuario').value,
+                trabajo: document.getElementById('ord-trabajo').value,
+                municipio: document.getElementById('ord-municipio').value,
+                contrato: document.getElementById('ord-contrato').value,
+                zona: document.getElementById('ord-zona').value,
+                solicita: document.getElementById('ord-solicita').value,
+                autoriza: document.getElementById('ord-autoriza').value,
+                empresa: empresaNombre,
+                empResponsable: empresaResp,
+                empRif: empresaRif,
+                ubicacion: document.getElementById('ord-ubicacion').value,
+                descripcion: document.getElementById('ord-descripcion').value,
+                manoObra: document.getElementById('ord-mano').value,
+                materiales: document.getElementById('ord-materiales').value,
+                equipos: document.getElementById('ord-equipos').value,
+                fechaInicio: document.getElementById('ord-f-inicio').value,
+                fechaFin: document.getElementById('ord-f-fin').value,
+                presupuesto: parseFloat(document.getElementById('ord-presupuesto').value) || 0,
+                estado: "En Curso",
+                certificadaStatus: "No Certificado",
+                opcionalNodo: document.getElementById('opc-nodo') && !document.getElementById('opc-nodo').classList.contains('hidden') ? {
+                    costo: parseFloat(document.getElementById('nodo-costo')?.value) || 0,
+                    pagoPor: document.getElementById('nodo-pago-por')?.value || "Inter",
+                    cantvPu: parseFloat(document.getElementById('nodo-cantv-pu')?.value) || 0,
+                    cantvPts: parseFloat(document.getElementById('nodo-cantv-pts')?.value) || 0,
+                    edcPu: parseFloat(document.getElementById('nodo-edc-pu')?.value) || 0,
+                    edcPts: parseFloat(document.getElementById('nodo-edc-pts')?.value) || 0,
+                    desc: document.getElementById('nodo-desc')?.value || "",
+                    abono: parseFloat(document.getElementById('nodo-abono')?.value) || 0
+                } : null,
+                opcionalIsp: document.getElementById('opc-isp') && !document.getElementById('opc-isp').classList.contains('hidden') ? {
+                    costo: parseFloat(document.getElementById('isp-costo')?.value) || 0,
+                    pagoPor: document.getElementById('isp-pago-por')?.value || "Inter",
+                    cantvPu: parseFloat(document.getElementById('isp-cantv-pu')?.value) || 0,
+                    cantvPts: parseFloat(document.getElementById('isp-cantv-pts')?.value) || 0,
+                    edcPu: parseFloat(document.getElementById('isp-edc-pu')?.value) || 0,
+                    edcPts: parseFloat(document.getElementById('isp-edc-pts')?.value) || 0,
+                    desc: document.getElementById('isp-desc')?.value || "",
+                    abono: parseFloat(document.getElementById('isp-abono')?.value) || 0
+                } : null,
+                creadoEn: serverTimestamp()
+            };
+
+            try {
+                // Usamos transacción sobre un documento contador por (año, mes) para evitar duplicados
+                const contadorId = `ordenes_${anio}_${mesNum}`;
+                const contadorRef = doc(db, 'contadores', contadorId);
+                let numOrdenAsignado = null;
+
+                await runTransaction(db, async (transaction) => {
+                    const contadorSnap = await transaction.get(contadorRef);
+                    let ultimo = 0;
+                    if (contadorSnap.exists()) {
+                        ultimo = contadorSnap.data().ultimo || 0;
+                    }
+                    numOrdenAsignado = ultimo + 1;
+                    transaction.set(contadorRef, { ultimo: numOrdenAsignado, anio, mesNum, tipo: 'orden' }, { merge: true });
+                    
+                    const nuevaOrdenRef = doc(collection(db, 'ordenes'));
+                    transaction.set(nuevaOrdenRef, { ...ordenBase, numOrden: numOrdenAsignado });
+                });
+
+                const ordenFinal = { ...ordenBase, numOrden: numOrdenAsignado };
+                alert("Orden de Trabajo guardada con éxito.");
+                window.generarOrdenPDF(ordenFinal);
+                document.getElementById('form-orden').reset();
+                window.hideOpcionales();
+                initFormFechas();
+                document.getElementById('ord-emp-resp').value = "";
+                document.getElementById('ord-emp-rif').value = "";
+            } catch (error) {
+                console.error("Error al guardar la orden:", error);
+                alert("Error al guardar la orden: " + error.message);
+            }
+        });
+
+        window.filtrarEnCurso = function() {
+            const busq = document.getElementById('f-encurso-busq')?.value;
+            const emp = document.getElementById('f-encurso-emp')?.value;
+            const obra = document.getElementById('f-encurso-obra')?.value;
+            const tbody = document.getElementById('tabla-encurso-body');
+            if (!tbody) return;
+            tbody.innerHTML = "";
+            let contador = 0;
+
+            for (let id in dataOrdenes) {
+                const o = dataOrdenes[id];
+                if (o.estado !== "En Curso") continue;
+                if (busq && o.numOrden != busq) continue;
+                if (emp && emp !== "Todas" && o.empresa !== emp) continue;
+                if (obra && obra !== "Todas" && obra !== "" && o.trabajo !== obra) continue;
+
+                contador++;
+                tbody.innerHTML += `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-3">${o.anio}</td>
+                        <td class="p-3">${o.mes}</td>
+                        <td class="p-3 font-bold">${String(o.numOrden).padStart(2, '0')}</td>
+                        <td class="p-3">${escapeHtml(o.empresa)}</td>
+                        <td class="p-3">${escapeHtml(o.trabajo)}</td>
+                        <td class="p-3"><span class="bg-yellow-100 text-yellow-800 text-xs font-semibold px-2 py-1 rounded">En Curso</span></td>
+                        <td class="p-3 flex gap-2">
+                            <button onclick="abrirCertificarModal('${id}')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1 rounded text-xs">Finalizar</button>
+                            <button onclick="reimprimirOrdenPDF('${id}')" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-2 py-1 rounded text-xs font-medium">PDF</button>
+                        </td>
+                    </tr>`;
+            }
+            const p1Cant = document.getElementById('p1-cant');
+            if (p1Cant) p1Cant.innerText = contador;
+        }
+
+        window.filtrarFinalizadas = function() {
+            const busq = document.getElementById('f-fin-busq')?.value;
+            const emp = document.getElementById('f-fin-emp')?.value;
+            const obra = document.getElementById('f-fin-obra')?.value;
+            const tbody = document.getElementById('tabla-finalizadas-body');
+            if (!tbody) return;
+            tbody.innerHTML = "";
+            let contador = 0;
+
+            for (let id in dataOrdenes) {
+                const o = dataOrdenes[id];
+                if (o.estado !== "Finalizado") continue;
+                if (busq && o.numOrden != busq) continue;
+                if (emp && emp !== "Todas" && o.empresa !== emp) continue;
+                if (obra && obra !== "Todas" && obra !== "" && o.trabajo !== obra) continue;
+
+                contador++;
+                const statusBadge = o.certificadaStatus === "No Certificado" 
+                    ? `<span class="bg-orange-100 text-orange-800 text-xs font-semibold px-2 py-1 rounded">Finalizado (No Certificado)</span>`
+                    : `<span class="bg-green-100 text-green-800 text-xs font-semibold px-2 py-1 rounded">Finalizado (Cert. ${o.certificadaStatus})</span>`;
+
+                tbody.innerHTML += `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-3">${o.anio}</td>
+                        <td class="p-3">${o.mes}</td>
+                        <td class="p-3 font-bold">${String(o.numOrden).padStart(2, '0')}</td>
+                        <td class="p-3">${escapeHtml(o.empresa)}</td>
+                        <td class="p-3">${escapeHtml(o.trabajo)}</td>
+                        <td class="p-3">${statusBadge}</td>
+                    </tr>`;
+            }
+            const p3Cant = document.getElementById('p3-cant');
+            if (p3Cant) p3Cant.innerText = contador;
+        }
+
+        window.abrirCertificarModal = function(id) {
+            const o = dataOrdenes[id];
+            if (!o) return;
+            const fVzla = getCaracasDate();
+            
+            document.getElementById('cert-ord-id').value = id;
+            document.getElementById('cert-titulo').innerText = `Certificación de Obra N° ${String(o.numOrden).padStart(2, '0')}`;
+            document.getElementById('cert-num').value = String(o.numOrden).padStart(2, '0');
+            document.getElementById('cert-mes').value = o.mes;
+            document.getElementById('cert-anio').value = o.anio;
+            document.getElementById('cert-fecha').value = fVzla.toISOString().split('T')[0];
+            document.getElementById('cert-empresa').value = o.empresa;
+            document.getElementById('cert-rif').value = o.empRif;
+            document.getElementById('cert-f-inicio').value = o.fechaInicio;
+            document.getElementById('cert-f-fin').value = o.fechaFin;
+            document.getElementById('cert-desc').innerText = o.descripcion;
+            document.getElementById('cert-importe').value = (o.presupuesto || 0).toFixed(2);
+            document.getElementById('cert-detalles-desv').value = "";
+
+            const modal = document.getElementById('modal-certificar');
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+        }
+
+        window.closeCertificarModal = function() {
+            const modal = document.getElementById('modal-certificar');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        document.getElementById('form-certificacion').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('cert-ord-id').value;
+            const o = dataOrdenes[id];
+            if (!o) return;
+            
+            const certificacionObra = {
+                numCertificacion: document.getElementById('cert-num').value,
+                mes: document.getElementById('cert-mes').value,
+                anio: document.getElementById('cert-anio').value,
+                fechaCertificacion: document.getElementById('cert-fecha').value,
+                desviacionesDetalle: document.getElementById('cert-detalles-desv').value
+            };
+
+            try {
+                await updateDoc(doc(db, 'ordenes', id), {
+                    estado: "Finalizado",
+                    certificacionObra
+                });
+                alert("Certificación de Obra procesada correctamente.");
+                window.closeCertificarModal();
+                window.generarCertificacionObraPDF(o, certificacionObra);
+            } catch (error) {
+                alert("Error al procesar la certificación: " + error.message);
+            }
+        });
+
+        window.cargarOrdenesNoCertificadas = function(empNombre) {
+            const container = document.getElementById('cf-ordenes-container');
+            if (!container) return;
+            
+            if (!empNombre || empNombre === "") {
+                container.innerHTML = '<p class="text-sm text-gray-500 italic">Seleccione una empresa para listar órdenes finalizadas no certificadas.</p>';
+                document.getElementById('cf-total-sum').innerText = "0.00";
+                return;
+            }
+            
+            container.innerHTML = "";
+            let hasOrdenes = false;
+            let total = 0;
+
+            for (let id in dataOrdenes) {
+                const o = dataOrdenes[id];
+                if (o.empresa === empNombre && o.estado === "Finalizado" && o.certificadaStatus === "No Certificado") {
+                    hasOrdenes = true;
+                    total += o.presupuesto || 0;
+                    container.innerHTML += `
+                        <div class="flex items-center justify-between p-2 hover:bg-gray-50 border-b">
+                            <label class="flex items-center gap-2 text-sm font-medium text-gray-700">
+                                <input type="checkbox" name="cf-chk-orden" value="${id}" onchange="calcTotalCertFinal()" class="rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4">
+                                Orden de Trabajo N° ${String(o.numOrden).padStart(2, '0')} (${escapeHtml(o.trabajo)})
+                            </label>
+                            <span class="text-sm font-bold text-gray-900">$${(o.presupuesto || 0).toFixed(2)}</span>
+                        </div>`;
+                }
+            }
+            
+            if (!hasOrdenes) {
+                container.innerHTML = '<p class="text-sm text-gray-500 italic">No se encontraron órdenes finalizadas pendientes para esta empresa.</p>';
+                document.getElementById('cf-total-sum').innerText = "0.00";
+            } else {
+                document.getElementById('cf-total-sum').innerText = total.toFixed(2);
+            }
+        }
+
+        window.calcTotalCertFinal = function() {
+            const chks = document.getElementsByName('cf-chk-orden');
+            let sum = 0;
+            chks.forEach(chk => { 
+                if (chk.checked && dataOrdenes[chk.value]) {
+                    sum += dataOrdenes[chk.value].presupuesto || 0;
+                }
+            });
+            const totalSpan = document.getElementById('cf-total-sum');
+            if (totalSpan) totalSpan.innerText = sum.toFixed(2);
+        }
+
+        document.getElementById('form-cert-final').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const empNombre = document.getElementById('cf-empresa').value;
+            const numCertFinal = document.getElementById('cf-num').value;
+            const mes = document.getElementById('cf-mes').value;
+            const anio = parseInt(document.getElementById('cf-anio').value, 10);
+            const totalSum = parseFloat(document.getElementById('cf-total-sum')?.innerText) || 0;
+
+            const chks = document.getElementsByName('cf-chk-orden');
+            const ordenesSeleccionadasIds = [];
+            chks.forEach(chk => { if (chk.checked) ordenesSeleccionadasIds.push(chk.value); });
+
+            if (ordenesSeleccionadasIds.length === 0) {
+                alert("Debe seleccionar al menos una orden de trabajo.");
+                return;
+            }
+
+            const certFinalData = {
+                numCertFinal, mes, anio, empresa: empNombre, total: totalSum,
+                ordenesIds: ordenesSeleccionadasIds,
+                creadoEn: serverTimestamp()
+            };
+
+            try {
+                // Batch atómico: crear cert + actualizar órdenes
+                const batch = writeBatch(db);
+                const nuevaCertRef = doc(collection(db, 'certificaciones_finales'));
+                batch.set(nuevaCertRef, certFinalData);
+                ordenesSeleccionadasIds.forEach(id => {
+                    batch.update(doc(db, 'ordenes', id), { certificadaStatus: numCertFinal });
+                });
+                await batch.commit();
+
+                alert("Certificación Final Procesada Correctamente.");
+                window.generarCertificacionFinalPDF(certFinalData);
+                document.getElementById('form-cert-final').reset();
+                const container = document.getElementById('cf-ordenes-container');
+                if (container) container.innerHTML = '<p class="text-sm text-gray-500 italic">Seleccione una empresa para listar órdenes finalizadas no certificadas.</p>';
+                document.getElementById('cf-total-sum').innerText = "0.00";
+                initFormFechas();
+            } catch (error) {
+                alert("Error al procesar la certificación final: " + error.message);
+            }
+        });
+
+        window.filtrarCertFinales = function() {
+            const emp = document.getElementById('f-cfl-emp')?.value;
+            const mes = document.getElementById('f-cfl-mes')?.value;
+            const anio = document.getElementById('f-cfl-anio')?.value;
+            const tbody = document.getElementById('tabla-certfinales-body');
+            if (!tbody) return;
+            tbody.innerHTML = "";
+            let contador = 0;
+
+            for (let id in dataCertFinales) {
+                const cf = dataCertFinales[id];
+                if (emp && emp !== "Todas" && cf.empresa !== emp) continue;
+                if (mes && mes !== "Todos" && cf.mes !== mes) continue;
+                if (anio && anio !== "Todos" && cf.anio != anio) continue;
+
+                contador++;
+                tbody.innerHTML += `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-3">${cf.anio}</td>
+                        <td class="p-3">${cf.mes}</td>
+                        <td class="p-3 font-bold text-indigo-600">${cf.numCertFinal}</td>
+                        <td class="p-3">${escapeHtml(cf.empresa)}</td>
+                        <td class="p-3 font-bold">$${(cf.total || 0).toFixed(2)}</td>
+                        <td class="p-3">
+                            <button onclick="reimprimirCertFinalPDF('${id}')" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-2 py-1 rounded text-xs font-medium">Reimprimir PDF</button>
+                        </td>
+                    </tr>`;
+            }
+            const p6Cant = document.getElementById('p6-cant');
+            if (p6Cant) p6Cant.innerText = contador;
+        }
+
+        window.reimprimirOrdenPDF = function(id) { 
+            if (dataOrdenes[id]) window.generarOrdenPDF(dataOrdenes[id]); 
+        }
+        
+        window.reimprimirCertFinalPDF = function(id) { 
+            if (dataCertFinales[id]) window.generarCertificacionFinalPDF(dataCertFinales[id]); 
+        }
+
+        function escapeHtml(str) {
+            if (!str) return "";
+            return String(str).replace(/[&<>"']/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                if (m === '"') return '&quot;';
+                if (m === "'") return '&#39;';
+                return m;
+            });
+        }
+
+        // ==== GENERACIÓN DE PDFs (sin cambios) ====
+        window.generarOrdenPDF = function(o) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(16);
+            doc.text("ORDEN DE TRABAJO", 105, 15, { align: 'center' });
+            
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "normal");
+            doc.text(`N° Orden: ${String(o.numOrden).padStart(2, '0')}   |   Mes: ${o.mes}   |   Año: ${o.anio}   |   Fecha: ${o.fecha}`, 14, 23);
+            doc.text(`Analista: ${o.usuario || ''}`, 14, 28);
+
+            doc.autoTable({
+                startY: 32,
+                head: [['I. INFORMACIÓN GENERAL', '']],
+                body: [
+                    ['Trabajo Obra a realizar:', o.trabajo || ''],
+                    ['Municipio / Zona:', `${o.municipio || ''} - ${o.zona || ''}`],
+                    ['Tipo de Contrato:', o.contrato || ''],
+                    ['Responsable Solicita:', o.solicita || ''],
+                    ['Responsable Autoriza:', o.autoriza || '']
+                ],
+                theme: 'striped', headStyles: { fillColor: [79, 70, 229] }, styles: { fontSize: 9 }
+            });
+
+            doc.autoTable({
+                startY: doc.lastAutoTable.finalY + 4,
+                head: [['II. INFORMACIÓN DE LA CONTRATISTA', '']],
+                body: [
+                    ['Empresa:', o.empresa || ''],
+                    ['Responsable:', o.empResponsable || ''],
+                    ['RIF:', o.empRif || '']
+                ],
+                theme: 'striped', headStyles: { fillColor: [79, 70, 229] }, styles: { fontSize: 9 }
+            });
+
+            doc.autoTable({
+                startY: doc.lastAutoTable.finalY + 4,
+                head: [['III. INFORMACIÓN DEL TRABAJO OBRA', '']],
+                body: [
+                    ['Ubicación:', o.ubicacion || ''],
+                    ['Descripción:', o.descripcion || ''],
+                    ['Mano de Obra / Materiales / Equipos:', `${o.manoObra || ''} / ${o.materiales || ''} / ${o.equipos || ''}`],
+                    ['Fechas de Ejecución:', `Inicio: ${o.fechaInicio || ''}  -  Fin: ${o.fechaFin || ''}`],
+                    ['Presupuesto Total:', `$${(o.presupuesto || 0).toFixed(2)}`]
+                ],
+                theme: 'striped', headStyles: { fillColor: [79, 70, 229] }, styles: { fontSize: 9 }
+            });
+
+            if (o.opcionalNodo || o.opcionalIsp) {
+                let bodyOpc = [];
+                if (o.opcionalNodo) {
+                    bodyOpc.push(['[Nodo Acceso] Costo Proyectado:', `$${(o.opcionalNodo.costo || 0).toFixed(2)} (Pago: ${o.opcionalNodo.pagoPor})`]);
+                    bodyOpc.push(['[Nodo Acceso] VGT CANTV:', `$${((o.opcionalNodo.cantvPu || 0) * (o.opcionalNodo.cantvPts || 0)).toFixed(2)}`]);
+                    bodyOpc.push(['[Nodo Acceso] VGT EDC:', `$${((o.opcionalNodo.edcPu || 0) * (o.opcionalNodo.edcPts || 0)).toFixed(2)}`]);
+                    bodyOpc.push(['[Nodo Acceso] Abono mensual:', `$${(o.opcionalNodo.abono || 0).toFixed(2)}`]);
+                }
+                if (o.opcionalIsp) {
+                    bodyOpc.push(['[ISP] Costo Proyectado:', `$${(o.opcionalIsp.costo || 0).toFixed(2)} (Pago: ${o.opcionalIsp.pagoPor})`]);
+                    bodyOpc.push(['[ISP] VGT CANTV:', `$${((o.opcionalIsp.cantvPu || 0) * (o.opcionalIsp.cantvPts || 0)).toFixed(2)}`]);
+                    bodyOpc.push(['[ISP] VGT EDC:', `$${((o.opcionalIsp.edcPu || 0) * (o.opcionalIsp.edcPts || 0)).toFixed(2)}`]);
+                    bodyOpc.push(['[ISP] Abono mensual:', `$${(o.opcionalIsp.abono || 0).toFixed(2)}`]);
+                }
+
+                doc.autoTable({
+                    startY: doc.lastAutoTable.finalY + 4,
+                    head: [['IV. SECCIONES OPCIONALES DE CONSTRUCCIÓN', '']],
+                    body: bodyOpc,
+                    theme: 'plain', headStyles: { fillColor: [37, 99, 235] }, styles: { fontSize: 8 }
+                });
+            }
+            doc.save(`Orden_Trabajo_${o.numOrden}.pdf`);
+        }
+
+        window.generarCertificacionObraPDF = function(o, c) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(15);
+            doc.text(`CERTIFICACIÓN DE OBRA N° ${c.numCertificacion}`, 105, 15, { align: 'center' });
+
+            doc.autoTable({
+                startY: 22,
+                head: [['I. DATOS DE CERTIFICACIÓN', '']],
+                body: [['Mes / Año:', `${c.mes} / ${c.anio}`], ['Fecha Certificación:', c.fechaCertificacion]],
+                theme: 'striped', headStyles: { fillColor: [5, 150, 105] }
+            });
+
+            doc.autoTable({
+                startY: doc.lastAutoTable.finalY + 4,
+                head: [['II. IDENTIFICACIÓN CONTRATISTA', '']],
+                body: [['Empresa:', o.empresa], ['RIF:', o.empRif]],
+                theme: 'striped', headStyles: { fillColor: [5, 150, 105] }
+            });
+
+            doc.autoTable({
+                startY: doc.lastAutoTable.finalY + 4,
+                head: [['III. INFORMACIÓN DEL PROYECTO', '']],
+                body: [['Trabajo realizado:', o.trabajo], ['Rango de Fechas:', `Desde ${o.fechaInicio} Hasta ${o.fechaFin}`]],
+                theme: 'striped', headStyles: { fillColor: [5, 150, 105] }
+            });
+
+            doc.autoTable({
+                startY: doc.lastAutoTable.finalY + 4,
+                head: [['IV. DETALLE Y MONTOS', '']],
+                body: [['Descripción:', o.descripcion], ['Importe Autorizado ($):', `$${(o.presupuesto || 0).toFixed(2)}`]],
+                theme: 'striped', headStyles: { fillColor: [5, 150, 105] }
+            });
+
+            doc.autoTable({
+                startY: doc.lastAutoTable.finalY + 4,
+                head: [['V. DESVIACIONES Y JUSTIFICACIÓN', '']],
+                body: [[c.desviacionesDetalle]],
+                theme: 'striped', headStyles: { fillColor: [220, 38, 38] }
+            });
+            doc.save(`Certificacion_Obra_${c.numCertificacion}.pdf`);
+        }
+
+        window.generarCertificacionFinalPDF = function(cf) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(16);
+            doc.text("CERTIFICACIÓN FINAL DE CONTRATO", 105, 15, { align: 'center' });
+
+            doc.autoTable({
+                startY: 25,
+                head: [['I. INFORMACIÓN DE LA CERTIFICACIÓN Y EMPRESA', '']],
+                body: [
+                    ['Número de Certificación Final:', cf.numCertFinal],
+                    ['Período Evaluado:', `${cf.mes} - ${cf.anio}`],
+                    ['Empresa:', cf.empresa]
+                ],
+                theme: 'striped', headStyles: { fillColor: [31, 41, 55] }
+            });
+
+            let bodyOrdenes = [];
+            (cf.ordenesIds || []).forEach(id => {
+                const ord = dataOrdenes[id];
+                if (ord) bodyOrdenes.push([`Orden de Trabajo N° ${String(ord.numOrden).padStart(2, '0')}`, ord.trabajo, `$${(ord.presupuesto || 0).toFixed(2)}`]);
+            });
+
+            doc.autoTable({
+                startY: doc.lastAutoTable.finalY + 5,
+                head: [['Órdenes Incluidas', 'Concepto', 'Monto']],
+                body: bodyOrdenes,
+                theme: 'grid', styles: { fontSize: 9 }
+            });
+
+            doc.setFontSize(12);
+            doc.text(`TOTAL CERTIFICADO: $${(cf.total || 0).toFixed(2)}`, 14, doc.lastAutoTable.finalY + 10);
+            doc.save(`Certificacion_Final_${cf.numCertFinal}.pdf`);
+        }
+
+        window.generarReportePDF = function() {
+            const { jsPDF } = window.jspdf;
+            const fDesde = document.getElementById('rep-f-desde').value;
+            const fHasta = document.getElementById('rep-f-hasta').value;
+            const emp = document.getElementById('rep-empresa').value;
+            const obra = document.getElementById('rep-obra').value;
+
+            const doc = new jsPDF('p', 'mm', 'a4');
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(15);
+            doc.text("REPORTE RESUMEN EJECUTIVO", 105, 15, { align: 'center' });
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "normal");
+            doc.text(`Filtros -> Desde: ${fDesde || 'Min'} | Hasta: ${fHasta || 'Max'} | Empresa: ${emp || 'Todas'} | Obra: ${obra || 'Todos'}`, 14, 21);
+
+            let cCurso = 0, cFinNoCert = 0, cFinCert = 0, totalDolares = 0;
+            let lineasDetalle = [];
+
+            for (let id in dataOrdenes) {
+                const o = dataOrdenes[id];
+                if (fDesde && o.fecha < fDesde) continue;
+                if (fHasta && o.fecha > fHasta) continue;
+                if (emp && emp !== "Todas" && o.empresa !== emp) continue;
+                if (obra && obra !== "Todos" && o.trabajo !== obra) continue;
+
+                totalDolares += (o.presupuesto || 0);
+                if (o.estado === "En Curso") cCurso++;
+                if (o.estado === "Finalizado") {
+                    if (o.certificadaStatus === "No Certificado") cFinNoCert++;
+                    else cFinCert++;
+                }
+
+                lineasDetalle.push([
+                    String(o.numOrden).padStart(2, '0'),
+                    o.empresa,
+                    o.trabajo,
+                    o.estado,
+                    o.certificadaStatus === "No Certificado" ? "No" : o.certificadaStatus,
+                    `$${(o.presupuesto || 0).toFixed(2)}`
+                ]);
+            }
+
+            doc.autoTable({
+                startY: 25,
+                head: [['Métrica de Control', 'Cantidad']],
+                body: [
+                    ['Órdenes de Trabajo en Curso', cCurso],
+                    ['Órdenes Finalizadas (No Certificadas Final)', cFinNoCert],
+                    ['Órdenes Finalizadas (Certificadas Finales)', cFinCert],
+                    ['Volumen Financiero Total Proyectado', `$${totalDolares.toFixed(2)}`]
+                ],
+                theme: 'grid', headStyles: { fillColor: [79, 70, 229] }
+            });
+
+            doc.autoTable({
+                startY: doc.lastAutoTable.finalY + 5,
+                head: [['N°', 'Empresa', 'Trabajo Obra', 'Estado', 'Cert. Final', 'Monto']],
+                body: lineasDetalle,
+                theme: 'striped',
+                styles: { fontSize: 8 },
+                margin: { bottom: 15 }
+            });
+
+            doc.save("Reporte_Resumen_Gestion.pdf");
+        }
+
+        window.exportarExcel = function(tipo) {
+            let matrix = [];
+            let nombreArchivo = "export.xlsx";
+
+            if (tipo === 'curso') {
+                matrix.push(["Año", "Mes", "Número de Orden", "Empresa", "Trabajo Obra a Realizar", "Estado"]);
+                for (let id in dataOrdenes) {
+                    const o = dataOrdenes[id];
+                    if (o.estado === "En Curso") matrix.push([o.anio, o.mes, o.numOrden, o.empresa, o.trabajo, o.estado]);
+                }
+                nombreArchivo = "Ordenes_En_Curso.xlsx";
+            } else if (tipo === 'finalizadas') {
+                matrix.push(["Año", "Mes", "Número de Orden", "Empresa", "Trabajo Obra a Realizar", "Estado", "Certificación Final Status"]);
+                for (let id in dataOrdenes) {
+                    const o = dataOrdenes[id];
+                    if (o.estado === "Finalizado") matrix.push([o.anio, o.mes, o.numOrden, o.empresa, o.trabajo, o.estado, o.certificadaStatus]);
+                }
+                nombreArchivo = "Ordenes_Finalizadas.xlsx";
+            } else if (tipo === 'certfinales') {
+                matrix.push(["Año", "Mes", "Número Certificación Final", "Empresa", "Total Facturado ($)"]);
+                for (let id in dataCertFinales) {
+                    const cf = dataCertFinales[id];
+                    matrix.push([cf.anio, cf.mes, cf.numCertFinal, cf.empresa, cf.total]);
+                }
+                nombreArchivo = "Certificaciones_Finales.xlsx";
+            }
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(matrix);
+            XLSX.utils.book_append_sheet(wb, ws, "Datos");
+            XLSX.writeFile(wb, nombreArchivo);
+        }
+
+        // ==== BACKUP JSON adaptado a Firestore ====
+        window.exportarBackupJSON = async function() {
+            if(!isAdmin) {
+                alert("Acceso denegado. Solo administradores.");
+                return;
+            }
+            try {
+                const colecciones = ['empresas', 'ordenes', 'certificaciones_finales', 'contadores'];
+                const backup = {};
+                for (const colName of colecciones) {
+                    const snap = await getDocs(collection(db, colName));
+                    backup[colName] = {};
+                    snap.forEach(d => { backup[colName][d.id] = d.data(); });
+                }
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backup, null, 2));
+                const downloadAnchor = document.createElement('a');
+                downloadAnchor.setAttribute("href", dataStr);
+                downloadAnchor.setAttribute("download", `BACKUP_FIRESTORE_${getCaracasDate().toISOString().split('T')[0]}.json`);
+                document.body.appendChild(downloadAnchor);
+                downloadAnchor.click();
+                downloadAnchor.remove();
+            } catch (error) {
+                alert("Error al exportar: " + error.message);
+            }
+        }
+
+        window.importarBackupJSON = async function() {
+            if(!isAdmin) {
+                alert("Acceso denegado. Solo administradores.");
+                return;
+            }
+            const fileInput = document.getElementById('import-json-file');
+            if (fileInput.files.length === 0) {
+                alert("Por favor, seleccione un archivo .json válido.");
+                return;
+            }
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const json = JSON.parse(e.target.result);
+                    if (!confirm("ADVERTENCIA: Esto sobrescribirá TODOS los datos existentes en las colecciones incluidas. ¿Está seguro?")) {
+                        return;
+                    }
+                    // Estructura esperada: { coleccion: { docId: {...datos} } }
+                    const colecciones = Object.keys(json);
+                    for (const colName of colecciones) {
+                        const docsMap = json[colName];
+                        const docIds = Object.keys(docsMap);
+                        // Batch en bloques de 400 (límite de 500 por batch)
+                        for (let i = 0; i < docIds.length; i += 400) {
+                            const batch = writeBatch(db);
+                            const slice = docIds.slice(i, i + 400);
+                            slice.forEach(docId => {
+                                batch.set(doc(db, colName, docId), docsMap[docId]);
+                            });
+                            await batch.commit();
+                        }
+                    }
+                    alert("Base de datos restaurada e importada con total éxito.");
+                    fileInput.value = "";
+                } catch (err) {
+                    alert("Error leyendo el archivo JSON: " + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        window.switchTab = function(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                el.classList.remove('border-indigo-600', 'text-indigo-600');
+                el.classList.add('border-transparent', 'text-gray-500');
+            });
+            
+            const targetTab = document.getElementById(tabId);
+            if (targetTab) targetTab.classList.add('active');
+            
+            const btn = Array.from(document.querySelectorAll('.tab-btn')).find(b => {
+                const onclick = b.getAttribute('onclick');
+                return onclick && onclick.includes(tabId);
+            });
+            if (btn) {
+                btn.classList.remove('border-transparent', 'text-gray-500');
+                btn.classList.add('border-indigo-600', 'text-indigo-600');
+            }
+
+            if (tabId === 'tab-cert-final') {
+                const cfEmpresa = document.getElementById('cf-empresa');
+                if (cfEmpresa && cfEmpresa.value) {
+                    cargarOrdenesNoCertificadas(cfEmpresa.value);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
